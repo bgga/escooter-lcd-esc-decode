@@ -50,6 +50,7 @@ checksum_calc = 0
 frame_byte = 0
 payload_byte = 0
 is_beginning = True
+max_speed = 0
 last_frame = datetime.datetime.now()
 
 def decode_flag(byte_val, position):
@@ -91,14 +92,14 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
         if frame_byte == 0:
             # let's assume this is the beginning of a regular frame:
             if byte != b'\x36':
-                print(f'Unexpected first byte: {byte}')
+                print(f'Nieoczekiwany pierwszy bajt: {byte}')
                 valid_frame = False
         elif frame_byte == 1:
             # this is the frame sequence field
             frame_seq = byte[0]
-            print(f'Got frame nr: {int(frame_seq)}')
+            print(f'Ramka Nr: {int(frame_seq)}')
             if is_beginning and frame_seq != 2:
-                print(f'Got unexpected sequence in first frame: {frame_seq}')
+                print(f'Nieoczekiwana sekwencja: {frame_seq}')
                 valid_frame = False
             else:
                 is_beginning = False
@@ -113,7 +114,7 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
             data_payload[frame_byte - 4] = byte[0]
         elif frame_byte == 6:
             # 2nd padding byte (apparently no data meaning):
-            pad_byte_2 = byte[0]
+            pad_byte_2 = byte[0] 
         elif frame_byte >= 7 and frame_byte < 14:
             # date bytes (2nd block)
             data_payload[frame_byte - 5] = byte[0]
@@ -130,17 +131,17 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
             last_frame = curr_frame
 
             # print the raw frame:
-            print('Raw frame:  ' + binascii.hexlify(raw_frame, ' ').decode("utf-8"))
+            print('Surowa Ramka: ' + binascii.hexlify(raw_frame, ' ').decode("utf-8"))
 
             # let's decode and print the data:
             if checksum_calc == 0 or checksum != checksum_calc:
-                print("Checksums don't match:")
-                print(f'Parsed checksum: {checksum}')
-                print(f'Calculated checksum: {checksum_calc}')
+                print("Checksum bledny!:")
+                print(f'Zparsowany Checksum: {checksum}')
+                print(f'Obliczony checksum: {checksum_calc}')
             else:
-                print(f'Padding bytes: {pad_byte_1} {pad_byte_2}')
+                print(f'Dane: {pad_byte_1} {pad_byte_2}')
                 conv_payload = decrypt_payload(frame_seq, data_payload)
-                print('Converted payload: ' + binascii.hexlify(conv_payload, ' ').decode("utf-8"))
+                print('Przekonwertowane: ' + binascii.hexlify(conv_payload, ' ').decode("utf-8"))
                 
                 speed = decode_speed([conv_payload[2], conv_payload[3]])
                 wheel_spin = decode_short([conv_payload[2], conv_payload[3]])
@@ -150,8 +151,10 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
                 turbo = decode_flag(conv_payload[0], FLAG_TURBO)
                 regen = decode_flag(conv_payload[0], FLAG_REGEN)
                 brakes = decode_flag(conv_payload[0], FLAG_BRAKES)
-
-                print(f'Time lapse: {delta_time}; Wheel spin: {wheel_spin:.0f}; Speed: {speed:.1f}; Power: {power:.0f}; Turbo: {turbo}; Regen: {regen}; Brakes: {brakes}; Unknown field: {unk_field:.1f}')
+                if speed > max_speed:
+                    max_speed = speed 
+                print(f'Czas: {delta_time}; Obrot kola: {wheel_spin:.0f}; Predkosc: {speed:.0f} (MAX: {max_speed:.0f}); Moc: {power:.0f}; Turbo: {turbo}; Regen: {regen}; Hamulce: {brakes}; Nieznane: {unk_field:.1f}')
+                
             frame_byte = 0
             checksum_calc = 0
             valid_frame = True
