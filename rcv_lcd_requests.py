@@ -3,6 +3,9 @@ import sys
 import binascii
 import serial
 import datetime
+import os
+import time
+
 
 FRAME_SIZE = 15
 PAYLOAD_SIZE = 9
@@ -41,6 +44,7 @@ frame_seq = 0
 entropy_key = 0
 power_setting = 0
 config_flags = 0
+light_flag = 0
 eabs = 0
 checksum = 0
 checksum_calc = 0
@@ -52,6 +56,9 @@ payload_byte = 0
 is_beginning = True
 valid_frame = True
 last_frame = datetime.datetime.now()
+
+def clear():
+    os.system("cls")
 
 def decode_short(short_bytes):
     return int.from_bytes(short_bytes, byteorder='big')
@@ -76,18 +83,18 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
 
         if frame_byte == 0:
             if byte != b'\x01':
-                print(f'Unexpected first byte: {byte}')
+                print(f'Nieoczekiwany pierwszy bajt: {byte}')
                 valid_frame = False
         elif frame_byte == 1:
             if byte != b'\x03':
-                print(f'Unexpected 2nd byte: {byte}')
+                print(f'Nieoczekiwany drugi bajt: {byte}')
                 valid_frame = False                
         elif frame_byte == 2:
             # this is the frame sequence field
             frame_seq = byte[0]
-            print(f'Got frame nr: {frame_seq}')
+            print(f'Ramka Nr: {frame_seq}')
             if is_beginning and frame_seq != 2:
-                print(f'Got unexpected sequence in first frame: {frame_seq}')
+                print(f'Otrzymano niepoprawne dane: {frame_seq}')
                 valid_frame = False
             else:
                 is_beginning = False
@@ -100,8 +107,9 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
         #    print(f'Got the padding byte nr {frame_byte}.')
         elif frame_byte == 7:
             power_setting = byte[0]
-        #elif frame_byte == 8:
+        elif frame_byte == 8:
         #    print(f'Got the padding byte nr {frame_byte}.')
+            light_flag == byte[0]
         elif frame_byte == 9:
             config_flags = byte[0]
         elif frame_byte == 10:
@@ -121,19 +129,28 @@ with serial.Serial(args.serial_port, BAUD_RATE, timeout=READ_TIMEOUT) as ser:
             last_frame = curr_frame
 
             # print the raw frame:
-            print('Raw frame:  ' + binascii.hexlify(raw_frame, ' ').decode("utf-8"))
+            print('Surowa ramka: ' + binascii.hexlify(raw_frame, ' ').decode("utf-8"))
 
             # let's decode and print the data:
             if checksum_calc == 0 or checksum != checksum_calc:
-                print("Checksums don't match:")
-                print(f'Parsed checksum: {checksum}')
-                print(f'Calculated checksum: {checksum_calc}')
+                print("Bledny Checksum:")
+                print(f'Parsowany checksum: {checksum}')
+                print(f'Obliczony checksum: {checksum_calc}')
             else:
                 gear = decrypt_value(frame_seq, enc_gear) & b'\x03'[0]
                 pas = decode_flag(raw_frame[6], FLAG_PAS)
                 cruise_ctl = decode_flag(raw_frame[6], FLAG_CRUISE_CTL)
                 soft_start = decode_flag(raw_frame[6], FLAG_SOFT_START)
-                print(f'Time lapse: {delta_time}; Gear: {gear}; PAS: {pas}; Cruise Ctl: {cruise_ctl}; Soft start: {soft_start}; Power limit: {raw_frame[7]}; EABS: {raw_frame[10]}')
+                swiatla = decode_flag(raw_frame[9], 3)
+                hamulce = decode_flag(raw_frame[9], 6)
+                p08 = raw_frame[8]
+                print(f'Czas: {delta_time}; Bieg: {gear}; Tempomat: {cruise_ctl}; EABS: {raw_frame[10]}, swiatla: {swiatla}, hamulce: {hamulce}, P08: {p08}')
+                #print(raw_frame)
+                #print(checksum)
+                #print(checksum_calc)
+                # print(raw_frame[10] - 96)
+                # print(f"EABS: {bin(eabs)}")
+
             frame_byte = 0
             checksum_calc = 0
             valid_frame = True
